@@ -20,13 +20,19 @@ final class GoogleAuth: NSObject, ASWebAuthenticationPresentationContextProvidin
     /// "123-abc.apps.googleusercontent.com" → "com.googleusercontent.apps.123-abc"
     nonisolated static var callbackScheme: String { clientID.split(separator: ".").reversed().joined(separator: ".") }
     nonisolated static var redirectURI: String { "\(callbackScheme):/oauth2redirect" }
-    static let scope = "openid email https://www.googleapis.com/auth/calendar.readonly"
+    /// The narrowest scopes for what the app reads: the calendar list and events.
+    static let calendarScopes = ["https://www.googleapis.com/auth/calendar.calendarlist.readonly",
+                                 "https://www.googleapis.com/auth/calendar.events.readonly"]
+    static let scope = (["openid", "email"] + calendarScopes).joined(separator: " ")
 
     enum AuthError: LocalizedError {
-        case signedOut(String), cancelled
+        case signedOut(String), noCalendarAccess(String), cancelled
         var errorDescription: String? {
             switch self {
-            case .signedOut(let account): "\(account) is no longer signed in."
+            case .signedOut(let account): "\(account) was signed out. Add it again in Settings."
+            // Google's consent screen has a checkbox per permission, and this one isn't ticked by default.
+            case .noCalendarAccess(let account):
+                "\(account) didn't give CalendarBar access to its calendars. Add it again and tick both calendar permissions on Google's screen."
             case .cancelled: "Sign-in cancelled."
             }
         }
@@ -74,6 +80,11 @@ final class GoogleAuth: NSObject, ASWebAuthenticationPresentationContextProvidin
                                             "grant_type": "authorization_code", "redirect_uri": Self.redirectURI])
         guard let refresh = token.refresh_token, let access = token.access_token,
               let account = token.id_token.flatMap(Self.email(fromIDToken:)) else { throw Self.failure(token) }
+        let granted = Set((token.scope ?? "").split(separator: " ").map(String.init))
+        guard Self.calendarScopes.allSatisfy(granted.contains) else {
+            Self.revoke(refresh)
+            throw AuthError.noCalendarAccess(account)
+        }
         Keychain.save(refresh, for: account)
         tokens[account] = (access, Date().addingTimeInterval(token.expires_in ?? 3600))
         return account
@@ -96,14 +107,17 @@ final class GoogleAuth: NSObject, ASWebAuthenticationPresentationContextProvidin
     func dropAccessToken(for account: String) { tokens[account] = nil }
 
     func signOut(_ account: String) {
-        if let refresh = Keychain.read(account) {
-            var request = URLRequest(url: URL(string: "https://oauth2.googleapis.com/revoke")!)
-            request.httpMethod = "POST"
-            request.httpBody = Self.form(["token": refresh])
-            googleSession.dataTask(with: request).resume() // best effort
-        }
+        if let refresh = Keychain.read(account) { Self.revoke(refresh) }
         Keychain.delete(account)
         tokens[account] = nil
+    }
+
+    /// Best effort: the token is forgotten locally either way.
+    private static func revoke(_ token: String) {
+        var request = URLRequest(url: URL(string: "https://oauth2.googleapis.com/revoke")!)
+        request.httpMethod = "POST"
+        request.httpBody = form(["token": token])
+        googleSession.dataTask(with: request).resume()
     }
 
     /// The `email` claim of an ID token. No signature check needed: it came straight from Google over TLS.
@@ -122,7 +136,7 @@ final class GoogleAuth: NSObject, ASWebAuthenticationPresentationContextProvidin
     }
 
     private struct TokenResponse: Decodable {
-        let access_token: String?, expires_in: Double?, refresh_token: String?, id_token: String?
+        let access_token: String?, expires_in: Double?, refresh_token: String?, id_token: String?, scope: String?
         let error: String?, error_description: String?
     }
 

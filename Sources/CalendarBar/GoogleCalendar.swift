@@ -100,13 +100,14 @@ enum GoogleCalendar {
         let events = calendars.indices.flatMap { i in
             (lists[i] ?? [])
                 .filter { seen.insert("\($0.iCalUID ?? $0.id)|\($0.start?.dateTime ?? $0.start?.date ?? "")").inserted }
-                .compactMap { makeEvent($0, calendar: calendars[i].entry, namePrimary: accounts.count > 1) }
+                .compactMap { makeEvent($0, calendar: calendars[i].entry, account: calendars[i].account, namePrimary: accounts.count > 1) }
         }
         return events.sorted { $0.start < $1.start }
     }
 
+    /// `account` is the one the event was loaded through; its Google links open in that account.
     /// The primary calendar goes unnamed, unless there are several accounts to tell apart.
-    static func makeEvent(_ e: APIEvent, calendar: Entry, namePrimary: Bool = false) -> Event? {
+    static func makeEvent(_ e: APIEvent, calendar: Entry, account: String, namePrimary: Bool = false) -> Event? {
         guard e.eventType != "workingLocation",
               e.attendees?.first(where: { $0.isSelf == true })?.responseStatus != "declined",
               let startTime = e.start, let start = date(startTime), let end = e.end.flatMap(date) else { return nil }
@@ -115,8 +116,9 @@ enum GoogleCalendar {
                      isAllDay: startTime.dateTime == nil,
                      calendar: calendar.primary == true && !namePrimary ? nil : calendar.summaryOverride ?? calendar.summary,
                      colorHex: e.colorId.flatMap { eventColors[$0] } ?? calendar.backgroundColor,
-                     meetingURL: meeting?.url, meetingName: meeting?.name,
-                     link: e.htmlLink.flatMap { URL(string: $0) },
+                     meetingURL: meeting.map { $0.url.host() == "meet.google.com" ? inAccount($0.url, account) : $0.url },
+                     meetingName: meeting?.name,
+                     link: e.htmlLink.flatMap { URL(string: $0) }.map { inAccount($0, account) },
                      isImportant: meeting != nil || (e.attendees?.count ?? 0) > 1)
     }
 
@@ -144,6 +146,13 @@ enum GoogleCalendar {
         return nil
     }
 
+    /// Google web links otherwise open in whichever account the browser signed in to first.
+    static func inAccount(_ url: URL, _ account: String) -> URL {
+        guard var c = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return url }
+        c.queryItems = (c.queryItems ?? []) + [URLQueryItem(name: "authuser", value: account)]
+        return c.url ?? url
+    }
+
     static func provider(_ url: URL) -> String? {
         guard let host = url.host()?.lowercased() else { return nil }
         return providers.first { host == $0.key || host.hasSuffix("." + $0.key) }?.value
@@ -159,7 +168,12 @@ enum GoogleCalendar {
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard status == 200 else {
             if status == 401 { await GoogleAuth.shared.dropAccessToken(for: account) }
-            throw AppError((try? JSONDecoder().decode(Failure.self, from: data))?.error.message ?? "Google Calendar error \(status).")
+            let message = (try? JSONDecoder().decode(Failure.self, from: data))?.error.message ?? "Google Calendar error \(status)."
+            if message.contains("insufficient authentication scopes") { // signed in without ticking calendar access
+                await GoogleAuth.shared.signOut(account)
+                throw GoogleAuth.AuthError.noCalendarAccess(account)
+            }
+            throw AppError(message)
         }
         return try JSONDecoder().decode(T.self, from: data)
     }

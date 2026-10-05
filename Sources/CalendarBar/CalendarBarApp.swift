@@ -5,12 +5,45 @@ struct CalendarBarApp: App {
     @NSApplicationDelegateAdaptor private var delegate: AppDelegate
 
     var body: some Scene {
-        MenuBarExtra("CalendarBar", systemImage: "calendar") {
+        MenuBarExtra {
             RootView().environmentObject(AppState.shared).environmentObject(Updater.shared)
+        } label: {
+            Image(nsImage: menuBarIcon)
         }
         .menuBarExtraStyle(.window)
     }
 }
+
+/// The app icon's shapes (header, 3×2 month, today as the Kumpan quarter; see scripts/make-icon.swift)
+/// as a template image, so the menu bar tints it.
+private let menuBarIcon: NSImage = {
+    let image = NSImage(size: NSSize(width: 18, height: 18), flipped: true) { _ in
+        guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
+        ctx.translateBy(x: 1, y: 1.4)
+        ctx.scaleBy(x: 16 / 750, y: 16 / 750) // the icon's 750-unit design space
+        func shape(_ x: CGFloat, _ y: CGFloat, _ w: CGFloat, _ h: CGFloat, _ r: [CGFloat]) {
+            ctx.move(to: CGPoint(x: x + r[0], y: y))
+            ctx.addArc(tangent1End: CGPoint(x: x + w, y: y), tangent2End: CGPoint(x: x + w, y: y + h), radius: r[1])
+            ctx.addArc(tangent1End: CGPoint(x: x + w, y: y + h), tangent2End: CGPoint(x: x, y: y + h), radius: r[2])
+            ctx.addArc(tangent1End: CGPoint(x: x, y: y + h), tangent2End: CGPoint(x: x, y: y), radius: r[3])
+            ctx.addArc(tangent1End: CGPoint(x: x, y: y), tangent2End: CGPoint(x: x + w, y: y), radius: r[0])
+            ctx.closePath()
+        }
+        let d: CGFloat = 650 / 3
+        shape(0, 0, 750, 175, [10, 10, 10, 10])
+        for row in 0..<2 {
+            for col in 0..<3 {
+                let x = CGFloat(col) * (d + 50), y = 225 + CGFloat(row) * (d + 50)
+                shape(x, y, d, d, row == 0 && col == 2 ? [10, 10, d - 10, 10] : [d / 2, d / 2, d / 2, d / 2])
+            }
+        }
+        ctx.setFillColor(.black)
+        ctx.fillPath()
+        return true
+    }
+    image.isTemplate = true
+    return image
+}()
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -74,8 +107,8 @@ final class AppState: ObservableObject {
             error = nil
             loadedAt = Date()
             nextRefresh = loadedAt.addingTimeInterval(300)
-        } catch GoogleAuth.AuthError.signedOut(let account) {
-            error = "\(account) was signed out. Add it again in Settings."
+        } catch let e as GoogleAuth.AuthError { // an account dropped out
+            error = e.localizedDescription
             accounts = GoogleAuth.shared.accounts
             if !signedIn { events = [] }
             nextRefresh = Date() // load the other accounts on the next tick

@@ -9,6 +9,11 @@ func featuredEvent(_ events: [Event], now: Date) -> Event? {
     return timed.first { $0.start <= now } ?? next
 }
 
+private func googleCalendar(_ account: String?) -> URL {
+    let url = URL(string: "https://calendar.google.com/calendar/r")!
+    return account.map { GoogleCalendar.inAccount(url, $0) } ?? url
+}
+
 private func open(_ url: URL?) {
     if let url { NSWorkspace.shared.open(url) }
 }
@@ -88,10 +93,23 @@ struct MainView: View {
 
     private var footer: some View {
         HStack(spacing: 4) {
-            Button { open(URL(string: "https://calendar.google.com")) } label: {
-                Label("Google Calendar", systemImage: "arrow.up.forward.app")
+            if state.accounts.count > 1 {
+                Menu {
+                    ForEach(state.accounts, id: \.self) { account in
+                        Button(account) { open(googleCalendar(account)) }
+                    }
+                } label: {
+                    Label("Google Calendar", systemImage: "arrow.up.forward.app")
+                }
+                .menuStyle(.button)
+                .buttonStyle(.glass)
+                .fixedSize()
+            } else {
+                Button { open(googleCalendar(state.accounts.first)) } label: {
+                    Label("Google Calendar", systemImage: "arrow.up.forward.app")
+                }
+                .buttonStyle(.glass)
             }
-            .buttonStyle(.glass)
             Spacer()
             if let release = updater.available {
                 Button { state.mode = .settings } label: {

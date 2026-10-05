@@ -14,7 +14,7 @@ final class CalendarBarTests: XCTestCase {
     func testMapsEvents() throws {
         let items = try decode(#"""
         {"items": [
-          {"id": "a", "summary": "Daily standup", "colorId": "3",
+          {"id": "a", "summary": "Daily standup", "colorId": "3", "htmlLink": "https://www.google.com/calendar/event?eid=YWJj",
            "start": {"dateTime": "2026-10-05T16:30:00+02:00"}, "end": {"dateTime": "2026-10-05T17:00:00+02:00"},
            "hangoutLink": "https://meet.google.com/abc-defg-hij",
            "conferenceData": {"conferenceSolution": {"name": "Google Meet"}, "entryPoints": [
@@ -31,12 +31,13 @@ final class CalendarBarTests: XCTestCase {
           {"id": "f", "summary": "Gym", "start": {"dateTime": "2026-10-05T18:00:00+02:00"}, "end": {"dateTime": "2026-10-05T19:00:00+02:00"}}
         ]}
         """#)
-        let events = items.compactMap { GoogleCalendar.makeEvent($0, calendar: work) }
+        let events = items.compactMap { GoogleCalendar.makeEvent($0, calendar: work, account: "me@kumpan.se") }
         XCTAssertEqual(events.map(\.title), ["Daily standup", "Vacation", "Client call", "Gym"])
 
         let standup = events[0]
-        XCTAssertEqual(standup.meetingURL?.absoluteString, "https://meet.google.com/abc-defg-hij")
+        XCTAssertEqual(standup.meetingURL?.absoluteString, "https://meet.google.com/abc-defg-hij?authuser=me@kumpan.se")
         XCTAssertEqual(standup.meetingName, "Google Meet")
+        XCTAssertEqual(standup.link?.absoluteString, "https://www.google.com/calendar/event?eid=YWJj&authuser=me@kumpan.se")
         XCTAssertEqual(standup.colorHex, "#8E24AA")
         XCTAssertEqual(standup.calendar, "Work – Meetings")
         XCTAssertTrue(standup.isImportant)
@@ -47,11 +48,11 @@ final class CalendarBarTests: XCTestCase {
         XCTAssertEqual(vacation.start, Calendar.current.date(from: DateComponents(year: 2026, month: 10, day: 5)))
         XCTAssertEqual(vacation.colorHex, "#4285f4")
 
-        XCTAssertEqual(events[2].meetingURL?.absoluteString, "https://us02web.zoom.us/j/123?pwd=abc")
+        XCTAssertEqual(events[2].meetingURL?.absoluteString, "https://us02web.zoom.us/j/123?pwd=abc") // not Google: untouched
         XCTAssertEqual(events[2].meetingName, "Zoom")
         XCTAssertFalse(events[3].isImportant)
-        XCTAssertNil(GoogleCalendar.makeEvent(items[0], calendar: primary)?.calendar)
-        XCTAssertEqual(GoogleCalendar.makeEvent(items[0], calendar: primary, namePrimary: true)?.calendar, "me@kumpan.se")
+        XCTAssertNil(GoogleCalendar.makeEvent(items[0], calendar: primary, account: "me@kumpan.se")?.calendar)
+        XCTAssertEqual(GoogleCalendar.makeEvent(items[0], calendar: primary, account: "me@kumpan.se", namePrimary: true)?.calendar, "me@kumpan.se")
     }
 
     func testFeaturedEvent() {

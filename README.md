@@ -3,7 +3,7 @@
 Your Google Calendar in the Mac menu bar. See what's next, join the call in one click, and get a
 heads-up before meetings you can't miss.
 
-**Website:** [calendarbar.kumpan.tech](https://calendarbar.kumpan.tech) · **Requires** macOS 26 or later, and a Google account (work or private, or both).
+**Website:** [calendarbar.kumpan.se](https://calendarbar.kumpan.se) · **Requires** macOS 26 or later, and a Google account (work or private, or both).
 
 ---
 
@@ -77,15 +77,16 @@ swift scripts/make-icon.swift preview out.png   # icon preview; `swift scripts/m
   notarytool profile:
   `xcrun notarytool store-credentials CalendarBar --apple-id <apple id> --team-id NH4M8452G6`.
 - **Website** (`web/`): Next.js + shadcn/ui. The homepage and `/privacy` are what Google's OAuth
-  verification checks, at calendarbar.kumpan.tech. Host it with base directory `web`, build `npm run build`,
+  verification checks, at calendarbar.kumpan.se. Host it with base directory `web`, build `npm run build`,
   start `npm start` (port 3000). `npm --prefix web run dev` for local work.
 - **Google OAuth client:** `GoogleAuth.clientID` is an OAuth client of type **iOS** (bundle id
   `se.kumpan.calendarbar`) in Google Cloud project `plasma-ember-510706-f6`, with the Google Calendar API
   enabled. An iOS client needs no client secret, so the ID is safe to commit. Sign-in is PKCE through
   `ASWebAuthenticationSession` with the reversed client ID as callback scheme. Scopes: `openid email
-  calendar.readonly`; the email in the ID token keys each account's refresh token in the keychain.
+  calendar.calendarlist.readonly calendar.events.readonly` (the narrowest read-only scopes for
+  the calendar list and events); the email in the ID token keys each account's refresh token in the keychain.
 - **Consent screen:** audience **External** so private Gmail accounts work, publishing status **In
-  production** (in *Testing*, refresh tokens expire after 7 days). `calendar.readonly` is a sensitive scope,
+  production** (in *Testing*, refresh tokens expire after 7 days). The calendar scopes are sensitive,
   so until Google verifies the app, sign-in shows an "unverified app" warning and is capped at 100 users.
   Verification needs a homepage and privacy policy on a domain the project owns.
 - **Implementation notes:**

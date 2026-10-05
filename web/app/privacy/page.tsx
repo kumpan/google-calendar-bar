@@ -25,10 +25,15 @@ export default function Privacy() {
       <p>When you sign in with a Google account, you grant CalendarBar:</p>
       <ul>
         <li>
-          <strong>Read-only access to your calendars</strong> (the{" "}
-          <code>calendar.readonly</code> scope): the list of calendars you subscribe to, and the
-          events on them for today and tomorrow, including titles, times, colours, video call links,
-          locations, descriptions and guests&apos; response status.
+          <strong>Read-only access to your calendar list</strong> (the{" "}
+          <code>calendar.calendarlist.readonly</code> scope): the calendars you subscribe to, their
+          names and colours, and which ones you show in Google Calendar.
+        </li>
+        <li>
+          <strong>Read-only access to your events</strong> (the{" "}
+          <code>calendar.events.readonly</code> scope): events for today and tomorrow, including
+          titles, times, colours, video call links, locations, descriptions and guests&apos; response
+          status.
         </li>
         <li>
           <strong>Your email address</strong> (the <code>openid</code> and <code>email</code>{" "}
