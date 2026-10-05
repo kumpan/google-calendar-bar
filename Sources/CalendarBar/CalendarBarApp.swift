@@ -1,0 +1,145 @@
+import SwiftUI
+
+@main
+struct CalendarBarApp: App {
+    @NSApplicationDelegateAdaptor private var delegate: AppDelegate
+
+    var body: some Scene {
+        MenuBarExtra("CalendarBar", systemImage: "calendar") {
+            RootView().environmentObject(AppState.shared).environmentObject(Updater.shared)
+        }
+        .menuBarExtraStyle(.window)
+    }
+}
+
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        Task { @MainActor in
+            Updater.shared.startAutomaticChecks()
+            AppState.shared.start()
+        }
+    }
+}
+
+struct AppError: LocalizedError {
+    let message: String
+    init(_ message: String) { self.message = message }
+    var errorDescription: String? { message }
+}
+
+@MainActor
+final class AppState: ObservableObject {
+    static let shared = AppState()
+    enum Mode { case main, settings }
+
+    @Published var mode = Mode.main
+    /// Signed-in Google accounts (emails).
+    @Published var accounts = GoogleAuth.shared.accounts
+    @Published var events: [Event] = []
+    @Published var error: String?
+    @Published var isLoading = false
+    /// Ticks every 15 s so countdowns, the Today list and the Meeting Guardian stay current.
+    @Published var now = Date()
+    private var loadedAt = Date.distantPast
+    private var nextRefresh = Date.distantPast
+
+    /// Reloads every 5 minutes (every minute after a failure, e.g. right after wake).
+    func start() {
+        Task {
+            while true {
+                now = Date()
+                if now >= nextRefresh { await refresh() }
+                Guardian.shared.check(events, now: now)
+                try? await Task.sleep(for: .seconds(15))
+            }
+        }
+    }
+
+    /// The panel just opened: anything older than a minute is reloaded.
+    func refreshIfStale() async {
+        if Date().timeIntervalSince(loadedAt) > 60 { await refresh() }
+    }
+
+    var signedIn: Bool { !accounts.isEmpty }
+
+    /// Today and tomorrow.
+    func refresh() async {
+        guard signedIn, !isLoading else { return }
+        isLoading = true
+        defer { isLoading = false }
+        let today = Calendar.current.startOfDay(for: Date())
+        do {
+            events = try await GoogleCalendar.events(accounts: accounts, from: today,
+                                                     to: Calendar.current.date(byAdding: .day, value: 2, to: today)!)
+            error = nil
+            loadedAt = Date()
+            nextRefresh = loadedAt.addingTimeInterval(300)
+        } catch GoogleAuth.AuthError.signedOut(let account) {
+            error = "\(account) was signed out. Add it again in Settings."
+            accounts = GoogleAuth.shared.accounts
+            if !signedIn { events = [] }
+            nextRefresh = Date() // load the other accounts on the next tick
+        } catch {
+            self.error = error.localizedDescription
+            nextRefresh = Date().addingTimeInterval(60)
+        }
+    }
+
+    func addAccount() async {
+        error = nil
+        do {
+            try await GoogleAuth.shared.signIn()
+            accounts = GoogleAuth.shared.accounts
+            nextRefresh = .distantPast
+            await refresh()
+        } catch GoogleAuth.AuthError.cancelled {
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    func remove(_ account: String) async {
+        GoogleAuth.shared.signOut(account)
+        accounts = GoogleAuth.shared.accounts
+        events = [] // the Meeting Guardian mustn't alert for the removed account's events
+        if signedIn { await refresh() } else { mode = .main }
+    }
+}
+
+/// MenuBarExtra draws its window with the old ~10 pt corners. Clip it to the larger, concentric
+/// radius used by macOS 26+ menu bar panels (inner controls use radius = 26 - their 10 pt inset).
+let panelCornerRadius: CGFloat = 26
+
+@MainActor private func roundCorners(of window: NSWindow) {
+    guard let frame = window.contentView?.superview else { return }
+    frame.wantsLayer = true
+    frame.layer?.cornerRadius = panelCornerRadius
+    frame.layer?.cornerCurve = .continuous
+    frame.layer?.masksToBounds = true
+    // WindowServer draws the shadow from the window's own corner radius (0 here), not from the layer,
+    // so the clipped corners showed the desktop through a square shadow outline. Private, so guarded.
+    let setRadius = NSSelectorFromString("_setCornerRadius:")
+    if window.responds(to: setRadius), let imp = window.method(for: setRadius) {
+        typealias SetRadius = @convention(c) (NSWindow, Selector, CGFloat) -> Void
+        unsafeBitCast(imp, to: SetRadius.self)(window, setRadius, panelCornerRadius)
+    }
+    window.invalidateShadow()
+}
+
+struct RootView: View {
+    @EnvironmentObject var state: AppState
+
+    var body: some View {
+        Group {
+            if !state.signedIn { SignInView() }
+            else if state.mode == .settings { SettingsView() }
+            else { MainView() }
+        }
+        .frame(width: 360)
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { n in
+            guard let w = n.object as? NSWindow, w.className.contains("MenuBarExtraWindow") else { return }
+            roundCorners(of: w)
+            Task { await state.refreshIfStale() }
+        }
+    }
+}
