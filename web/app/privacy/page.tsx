@@ -10,7 +10,7 @@ export default function Privacy() {
       <h1 className="text-3xl font-semibold tracking-tight">Privacy policy</h1>
       <p>Last updated 5 October 2026.</p>
       <p>
-        CalendarBar is a macOS menu bar app made by Kumpan Grafisk Form AB (&quot;Kumpan&quot;,
+        CalendarBar is a macOS menu bar app made by Kumpan Sweden AB (&quot;Kumpan&quot;,
         &quot;we&quot;). It shows events from your Google Calendar. This policy explains what data
         the app accesses and what it does with it.
       </p>
@@ -104,7 +104,7 @@ export default function Privacy() {
         <a href="mailto:per@kumpan.se" className="text-foreground underline underline-offset-4">
           per@kumpan.se
         </a>
-        , Kumpan Grafisk Form AB, Industrigatan 4B, 112 46 Stockholm, Sweden.
+        , Kumpan Sweden AB, Industrigatan 4B, 112 46 Stockholm, Sweden.
       </p>
     </article>
   );

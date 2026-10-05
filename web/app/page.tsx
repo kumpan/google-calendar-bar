@@ -43,7 +43,7 @@ export default function Home() {
               href="https://github.com/kumpan/google-calendar-bar/releases/latest"
               className={buttonVariants({ size: "lg", className: "h-11 px-5 text-base" })}
             >
-              <Download data-icon="inline-start" />
+              <Download />
               Download for Mac
             </a>
             <span className="text-sm text-muted-foreground">

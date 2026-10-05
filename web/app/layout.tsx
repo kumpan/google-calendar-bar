@@ -40,7 +40,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         </header>
         <main className="flex-1">{children}</main>
         <footer className="mx-auto w-full max-w-5xl px-6 py-10 text-sm text-muted-foreground">
-          © {new Date().getFullYear()} Kumpan Grafisk Form AB ·{" "}
+          © {new Date().getFullYear()} Kumpan Sweden AB ·{" "}
           <Link href="/privacy" className="underline-offset-4 hover:underline">
             Privacy policy
           </Link>{" "}
