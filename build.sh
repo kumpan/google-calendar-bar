@@ -58,14 +58,15 @@ if [[ "${1:-}" == "release" ]]; then
   ditto -c -k --keepParent dist/CalendarBar.app "$ZIP" # re-zip with the stapled ticket
   spctl --assess --type execute -v dist/CalendarBar.app
 
-  # Installer: the app next to an Applications shortcut, so installing is one drag. Stable name, so the
-  # website can link to releases/latest/download/CalendarBar.dmg.
+  # Installer: a designed window with the app, an arrow and an Applications shortcut, so installing is one
+  # drag. Stable name, so the website can link to releases/latest/download/CalendarBar.dmg.
   DMG="dist/CalendarBar.dmg"
-  rm -rf .build/dmg "$DMG"
-  mkdir -p .build/dmg
-  cp -R dist/CalendarBar.app .build/dmg/
-  ln -s /Applications .build/dmg/Applications
-  hdiutil create -volname CalendarBar -srcfolder .build/dmg -fs HFS+ -format UDZO "$DMG"
+  rm -f "$DMG"
+  [[ -x .build/venv/bin/dmgbuild ]] || { python3 -m venv .build/venv && .build/venv/bin/pip install --quiet dmgbuild; }
+  mkdir -p .build/dmgassets
+  swift scripts/make-dmg-background.swift .build/dmgassets
+  .build/venv/bin/dmgbuild -s scripts/dmg-settings.py -D app=dist/CalendarBar.app \
+    -D background=.build/dmgassets/background.png CalendarBar "$DMG"
   codesign --force --timestamp -s "$SIGN_ID" "$DMG"
   xcrun notarytool submit "$DMG" --keychain-profile CalendarBar ${NOTARY_KEYCHAIN:+--keychain "$NOTARY_KEYCHAIN"} --wait
   xcrun stapler staple "$DMG"
