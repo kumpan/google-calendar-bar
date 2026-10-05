@@ -1,86 +1,93 @@
-// Renders the app icon.
-//   swift scripts/make-icon.swift preview <out.png> [size]   PNG, 512 px unless given
-//   swift scripts/make-icon.swift                     writes Resources/AppIcon.icns
+// Renders the app icon in the Kumpan logo's geometry: square modules whose corners are either small
+// (10/350 of a module) or swept into a full quarter circle.
+//   swift scripts/make-icon.swift preview <out.png> [size]   one PNG of the chosen variant (512 px)
+//   swift scripts/make-icon.swift sheet <out.png>            all variants side by side
+//   swift scripts/make-icon.swift                            writes Resources/AppIcon.icns
 import CoreGraphics
 import Foundation
 import ImageIO
 import UniformTypeIdentifiers
 
-func color(_ hex: UInt32, _ alpha: CGFloat = 1) -> CGColor {
-    CGColor(srgbRed: CGFloat(hex >> 16 & 0xFF) / 255, green: CGFloat(hex >> 8 & 0xFF) / 255,
-            blue: CGFloat(hex & 0xFF) / 255, alpha: alpha)
-}
+let purple: UInt32 = 0x451484, lavender: UInt32 = 0xD0CEFF // Kumpan brand colours
 
-func gradient(_ hexes: [UInt32], _ alpha: [CGFloat]? = nil) -> CGGradient {
-    let colors = hexes.enumerated().map { color($1, alpha?[$0] ?? 1) }
-    let locs = (0..<hexes.count).map { CGFloat($0) / CGFloat(max(hexes.count - 1, 1)) }
-    return CGGradient(colorsSpace: nil, colors: colors as CFArray, locations: locs)!
+func color(_ hex: UInt32) -> CGColor {
+    CGColor(srgbRed: CGFloat(hex >> 16 & 0xFF) / 255, green: CGFloat(hex >> 8 & 0xFF) / 255, blue: CGFloat(hex & 0xFF) / 255, alpha: 1)
 }
 
 /// macOS icon body: 824 pt squircle centered on a 1024 canvas (superellipse, n = 5).
-func squircle(in r: CGRect) -> CGPath {
+func squircle() -> CGPath {
     let path = CGMutablePath(), n = 5.0, steps = 720
     for i in 0...steps {
         let t = Double(i) / Double(steps) * 2 * .pi
         let c = cos(t), s = sin(t)
         let x = pow(abs(c), 2 / n) * (c < 0 ? -1 : 1), y = pow(abs(s), 2 / n) * (s < 0 ? -1 : 1)
-        let p = CGPoint(x: r.midX + x * r.width / 2, y: r.midY + y * r.height / 2)
+        let p = CGPoint(x: 512 + x * 412, y: 512 + y * 412)
         i == 0 ? path.move(to: p) : path.addLine(to: p)
     }
     path.closeSubpath()
     return path
 }
 
-func rrect(_ x: CGFloat, _ y: CGFloat, _ w: CGFloat, _ h: CGFloat, _ r: CGFloat) -> CGPath {
-    CGPath(roundedRect: CGRect(x: 512 + x, y: 512 + y, width: w, height: h), cornerWidth: r, cornerHeight: r, transform: nil)
+/// A rect in the 750-unit design space (y down, like the Kumpan SVG) with per-corner radii
+/// [top-left, top-right, bottom-right, bottom-left].
+func shape(_ x: CGFloat, _ y: CGFloat, _ w: CGFloat, _ h: CGFloat, _ r: [CGFloat]) -> CGPath {
+    let p = CGMutablePath()
+    p.move(to: CGPoint(x: x + r[0], y: y))
+    p.addArc(tangent1End: CGPoint(x: x + w, y: y), tangent2End: CGPoint(x: x + w, y: y + h), radius: r[1])
+    p.addArc(tangent1End: CGPoint(x: x + w, y: y + h), tangent2End: CGPoint(x: x, y: y + h), radius: r[2])
+    p.addArc(tangent1End: CGPoint(x: x, y: y + h), tangent2End: CGPoint(x: x, y: y), radius: r[3])
+    p.addArc(tangent1End: CGPoint(x: x, y: y), tangent2End: CGPoint(x: x + w, y: y), radius: r[0])
+    p.closeSubpath()
+    return p
 }
 
-func fill(_ ctx: CGContext, _ path: CGPath, _ g: CGGradient) {
-    ctx.saveGState()
-    ctx.addPath(path); ctx.clip()
-    let box = path.boundingBox
-    ctx.drawLinearGradient(g, start: CGPoint(x: box.midX, y: box.maxY), end: CGPoint(x: box.midX, y: box.minY), options: [])
-    ctx.restoreGState()
-}
+let s: CGFloat = 10 // small corner
 
-/// Blue squircle, white calendar page with a coral header, today's square highlighted.
-func render(size: Int) -> CGImage {
-    let ctx = CGContext(data: nil, width: size, height: size, bitsPerComponent: 8, bytesPerRow: 0,
-                        space: CGColorSpace(name: CGColorSpace.sRGB)!,
-                        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
-    ctx.scaleBy(x: CGFloat(size) / 1024, y: CGFloat(size) / 1024)
-    let shape = squircle(in: CGRect(x: 100, y: 100, width: 824, height: 824))
+func circle(_ x: CGFloat, _ y: CGFloat, _ d: CGFloat) -> CGPath { shape(x, y, d, d, [d / 2, d / 2, d / 2, d / 2]) }
 
-    ctx.saveGState()
-    ctx.setShadow(offset: CGSize(width: 0, height: -12), blur: 28, color: color(0x000000, 0.35))
-    ctx.addPath(shape); ctx.setFillColor(color(0x3B6CF0)); ctx.fillPath()
-    ctx.restoreGState()
-    fill(ctx, shape, gradient([0x6FB1FF, 0x3B6CF0, 0x2A35B8]))
-    ctx.saveGState()
-    ctx.addPath(shape); ctx.clip()
-    ctx.drawLinearGradient(gradient([0xFFFFFF, 0xFFFFFF], [0.3, 0]), start: CGPoint(x: 512, y: 924), end: CGPoint(x: 512, y: 700), options: [])
-    ctx.addPath(shape); ctx.setStrokeColor(color(0xFFFFFF, 0.22)); ctx.setLineWidth(6); ctx.strokePath()
-    ctx.restoreGState()
+enum Variant: Int, CaseIterable {
+    case dots = 1, header, kumpan
 
-    let page = rrect(-280, -270, 560, 520, 80)
-    ctx.saveGState()
-    ctx.setShadow(offset: CGSize(width: 0, height: -14), blur: 30, color: color(0x0A0626, 0.45))
-    ctx.addPath(page); ctx.setFillColor(color(0xFFFFFF)); ctx.fillPath()
-    ctx.restoreGState()
-    fill(ctx, page, gradient([0xFFFFFF, 0xE6ECFF]))
-    ctx.saveGState()
-    ctx.addPath(page); ctx.clip()
-    fill(ctx, CGPath(rect: CGRect(x: 232, y: 512 + 110, width: 560, height: 140), transform: nil), gradient([0xFF7A6B, 0xE8453C]))
-    ctx.restoreGState()
-    for x in [-150.0, 110] { // binder rings
-        fill(ctx, rrect(x, 200, 40, 110, 20), gradient([0x3A3F55, 0x1D2030]))
-    }
-    for row in 0..<3 {
-        for col in 0..<4 {
-            let today = row == 1 && col == 2
-            let cell = rrect(-220 + CGFloat(col) * 115, 20 - CGFloat(row) * 105, 80, 75, 20)
-            fill(ctx, cell, today ? gradient([0x5AA2FF, 0x3B5BF0]) : gradient([0xD5DDF2, 0xC6D0EA]))
+    /// Shapes in the 750 design space; holes are cut out with even-odd filling.
+    var shapes: [CGPath] {
+        switch self {
+        case .dots: // header and a 3×2 month, today as the Kumpan quarter
+            let d: CGFloat = (750 - 100) / 3
+            var shapes = [shape(0, 0, 750, 175, [s, s, s, s])]
+            for row in 0..<2 {
+                for col in 0..<3 {
+                    let x = CGFloat(col) * (d + 50), y = 225 + CGFloat(row) * (d + 50)
+                    shapes.append(row == 0 && col == 2 ? shape(x, y, d, d, [s, s, d - s, s]) : circle(x, y, d))
+                }
+            }
+            return shapes
+        case .header: // calendar header over two days, the next meeting as the Kumpan quarter; centred vertically
+            return [shape(0, 87.5, 750, 175, [s, s, s, s]), circle(0, 312.5, 350), shape(400, 312.5, 350, 350, [s, s, 340, s])]
+        case .kumpan: // the Kumpan mark turned upside down: the leaf becomes the calendar's header
+            return [shape(0, 0, 750, 350, [s, 340, s, 340]), circle(0, 400, 350), shape(400, 400, 350, 350, [s, s, 340, s])]
         }
+    }
+}
+
+let chosen = Variant.dots
+
+func render(_ variant: Variant, size: Int) -> CGImage {
+    let ctx = CGContext(data: nil, width: size, height: size, bitsPerComponent: 8, bytesPerRow: 0,
+                        space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+    ctx.scaleBy(x: CGFloat(size) / 1024, y: CGFloat(size) / 1024)
+
+    ctx.saveGState()
+    ctx.setShadow(offset: CGSize(width: 0, height: -10), blur: 24, color: CGColor(gray: 0, alpha: 0.3))
+    ctx.addPath(squircle()); ctx.setFillColor(color(purple)); ctx.fillPath()
+    ctx.restoreGState()
+
+    // Same proportions as the Kumpan icon on its background: the mark is 750/1100 of the tile.
+    let scale = 824 * 750 / 1100 / 750.0, origin = (1024 - 750 * scale) / 2
+    var flip = CGAffineTransform(a: scale, b: 0, c: 0, d: -scale, tx: origin, ty: 1024 - origin)
+    ctx.setFillColor(color(lavender))
+    for path in variant.shapes {
+        ctx.addPath(path.copy(using: &flip)!)
+        ctx.fillPath(using: .evenOdd)
     }
     return ctx.makeImage()!
 }
@@ -91,10 +98,24 @@ func writePNG(_ image: CGImage, to url: URL) {
     CGImageDestinationFinalize(dest)
 }
 
-let args = CommandLine.arguments.dropFirst()
-if args.first == "preview", let out = args.dropFirst().first {
-    writePNG(render(size: args.dropFirst(2).first.flatMap { Int($0) } ?? 512), to: URL(fileURLWithPath: out))
-    print("Wrote \(out)")
+let args = Array(CommandLine.arguments.dropFirst())
+if args.first == "preview", args.count > 1 {
+    writePNG(render(chosen, size: args.count > 2 ? Int(args[2]) ?? 512 : 512), to: URL(fileURLWithPath: args[1]))
+    exit(0)
+}
+if args.first == "sheet", args.count > 1 {
+    // Every variant at 400 px, with 32 px (Dock-small) versions underneath.
+    let tile = 400, pad = 40, count = Variant.allCases.count
+    let w = count * tile + (count + 1) * pad, h = tile + 3 * pad + 32
+    let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
+                        space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+    ctx.setFillColor(CGColor(gray: 0.93, alpha: 1)); ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
+    for (i, v) in Variant.allCases.enumerated() {
+        let x = pad + i * (tile + pad)
+        ctx.draw(render(v, size: tile), in: CGRect(x: x, y: 2 * pad + 32, width: tile, height: tile))
+        ctx.draw(render(v, size: 64), in: CGRect(x: x + tile / 2 - 16, y: pad, width: 32, height: 32))
+    }
+    writePNG(ctx.makeImage()!, to: URL(fileURLWithPath: args[1]))
     exit(0)
 }
 
@@ -105,14 +126,12 @@ try FileManager.default.createDirectory(at: iconset, withIntermediateDirectories
 for base in [16, 32, 128, 256, 512] {
     for scale in [1, 2] {
         let name = scale == 1 ? "icon_\(base)x\(base).png" : "icon_\(base)x\(base)@2x.png"
-        writePNG(render(size: base * scale), to: iconset.appendingPathComponent(name))
+        writePNG(render(chosen, size: base * scale), to: iconset.appendingPathComponent(name))
     }
 }
-let resources = root.appendingPathComponent("Resources")
-try FileManager.default.createDirectory(at: resources, withIntermediateDirectories: true)
 let proc = Process()
 proc.executableURL = URL(fileURLWithPath: "/usr/bin/iconutil")
-proc.arguments = ["-c", "icns", iconset.path, "-o", resources.appendingPathComponent("AppIcon.icns").path]
+proc.arguments = ["-c", "icns", iconset.path, "-o", root.appendingPathComponent("Resources/AppIcon.icns").path]
 try proc.run()
 proc.waitUntilExit()
-print(proc.terminationStatus == 0 ? "Wrote Resources/AppIcon.icns" : "iconutil failed")
+print(proc.terminationStatus == 0 ? "Wrote Resources/AppIcon.icns (\(chosen))" : "iconutil failed")
