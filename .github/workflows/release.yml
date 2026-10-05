@@ -71,7 +71,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: >
-          gh release create "v$VERSION" "dist/CalendarBar-$VERSION.zip"
+          gh release create "v$VERSION" "dist/CalendarBar-$VERSION.zip" dist/CalendarBar.dmg
           --title "CalendarBar $VERSION" --target "$GITHUB_SHA" --generate-notes
 
       - name: Clean up keychain

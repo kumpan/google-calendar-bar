@@ -9,9 +9,8 @@ heads-up before meetings you can't miss.
 
 ## Install
 
-1. Download **`CalendarBar-<version>.zip`** from the
-   **[latest release](https://github.com/kumpan/google-calendar-bar/releases/latest)** (under **Assets**).
-2. Unzip it and drag **CalendarBar** into your **Applications** folder.
+1. Download **[CalendarBar.dmg](https://github.com/kumpan/google-calendar-bar/releases/latest/download/CalendarBar.dmg)**.
+2. Open it and drag **CalendarBar** onto the **Applications** folder next to it. Then eject the disk image.
 3. Open it. A calendar icon appears in the menu bar. The app is signed and notarized by Apple, so it opens
    without warnings.
 4. Click the icon → **Sign in with Google** and allow CalendarBar to see your calendars. It only gets
@@ -65,7 +64,7 @@ the bottom of the menu. Click it, then **Install and Relaunch**. You can also go
 ```sh
 swift test                  # unit tests
 ./build.sh                  # → dist/CalendarBar.app (Developer ID-signed if the cert is installed, else ad-hoc)
-./build.sh release          # also notarizes + staples → dist/CalendarBar-<VERSION>.zip
+./build.sh release          # also notarizes + staples → dist/CalendarBar-<VERSION>.zip and dist/CalendarBar.dmg
 swift scripts/make-icon.swift preview out.png   # icon preview; `swift scripts/make-icon.swift` writes Resources/AppIcon.icns
 ```
 

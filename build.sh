@@ -1,7 +1,8 @@
 #!/bin/bash
 # Builds CalendarBar.app into ./dist/
 #   ./build.sh           signed with Kumpan's Developer ID if installed, else ad-hoc
-#   ./build.sh release   also notarizes, staples and zips for distribution
+#   ./build.sh release   also notarizes and staples, then makes dist/CalendarBar-<v>.zip (in-app updates)
+#                        and dist/CalendarBar.dmg (drag-to-Applications installer for the website)
 #                        (needs the "CalendarBar" notarytool keychain profile; CI sets NOTARY_KEYCHAIN)
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -56,7 +57,20 @@ if [[ "${1:-}" == "release" ]]; then
   rm "$ZIP"
   ditto -c -k --keepParent dist/CalendarBar.app "$ZIP" # re-zip with the stapled ticket
   spctl --assess --type execute -v dist/CalendarBar.app
-  echo "Release ready: $ZIP"
+
+  # Installer: the app next to an Applications shortcut, so installing is one drag. Stable name, so the
+  # website can link to releases/latest/download/CalendarBar.dmg.
+  DMG="dist/CalendarBar.dmg"
+  rm -rf .build/dmg "$DMG"
+  mkdir -p .build/dmg
+  cp -R dist/CalendarBar.app .build/dmg/
+  ln -s /Applications .build/dmg/Applications
+  hdiutil create -volname CalendarBar -srcfolder .build/dmg -fs HFS+ -format UDZO "$DMG"
+  codesign --force --timestamp -s "$SIGN_ID" "$DMG"
+  xcrun notarytool submit "$DMG" --keychain-profile CalendarBar ${NOTARY_KEYCHAIN:+--keychain "$NOTARY_KEYCHAIN"} --wait
+  xcrun stapler staple "$DMG"
+  spctl --assess --type open --context context:primary-signature -v "$DMG"
+  echo "Release ready: $ZIP, $DMG"
 else
   echo "Built dist/CalendarBar.app"
 fi

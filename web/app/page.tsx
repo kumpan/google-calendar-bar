@@ -40,14 +40,14 @@ export default function Home() {
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-4">
             <a
-              href="https://github.com/kumpan/google-calendar-bar/releases/latest"
+              href="https://github.com/kumpan/google-calendar-bar/releases/latest/download/CalendarBar.dmg"
               className={buttonVariants({ size: "lg", className: "h-11 px-5 text-base" })}
             >
               <Download />
               Download for Mac
             </a>
             <span className="text-sm text-muted-foreground">
-              macOS 26 or later · Signed and notarized by Apple
+              Open it and drag CalendarBar into Applications. macOS 26 or later.
             </span>
           </div>
         </div>
