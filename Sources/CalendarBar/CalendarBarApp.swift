@@ -66,8 +66,8 @@ final class AppState: ObservableObject {
     enum Mode { case main, settings }
 
     @Published var mode = Mode.main
-    /// Signed-in Google accounts (emails).
-    @Published var accounts = GoogleAuth.shared.accounts
+    /// Signed-in Google and Microsoft accounts (see AccountKey).
+    @Published var accounts = Auth.shared.accounts
     @Published var events: [Event] = []
     @Published var error: String?
     @Published var isLoading = false
@@ -102,14 +102,20 @@ final class AppState: ObservableObject {
         defer { isLoading = false }
         let today = Calendar.current.startOfDay(for: Date())
         do {
-            events = try await GoogleCalendar.events(accounts: accounts, from: today,
-                                                     to: Calendar.current.date(byAdding: .day, value: 2, to: today)!)
+            let end = Calendar.current.date(byAdding: .day, value: 2, to: today)!
+            let byProvider = Dictionary(grouping: accounts, by: AccountKey.provider)
+            async let google = GoogleCalendar.events(accounts: byProvider[.google] ?? [], from: today, to: end,
+                                                     namePrimary: accounts.count > 1)
+            async let microsoft = MicrosoftCalendar.events(accounts: byProvider[.microsoft] ?? [], from: today, to: end,
+                                                           namePrimary: accounts.count > 1)
+            let (g, m) = try await (google, microsoft)
+            events = (g + m).sorted { $0.start < $1.start }
             error = nil
             loadedAt = Date()
             nextRefresh = loadedAt.addingTimeInterval(300)
-        } catch let e as GoogleAuth.AuthError { // an account dropped out
+        } catch let e as Auth.AuthError { // an account dropped out
             error = e.localizedDescription
-            accounts = GoogleAuth.shared.accounts
+            accounts = Auth.shared.accounts
             if !signedIn { events = [] }
             nextRefresh = Date() // load the other accounts on the next tick
         } catch {
@@ -118,22 +124,22 @@ final class AppState: ObservableObject {
         }
     }
 
-    func addAccount() async {
+    func addAccount(_ provider: Provider) async {
         error = nil
         do {
-            try await GoogleAuth.shared.signIn()
-            accounts = GoogleAuth.shared.accounts
+            try await Auth.shared.signIn(provider)
+            accounts = Auth.shared.accounts
             nextRefresh = .distantPast
             await refresh()
-        } catch GoogleAuth.AuthError.cancelled {
+        } catch Auth.AuthError.cancelled {
         } catch {
             self.error = error.localizedDescription
         }
     }
 
     func remove(_ account: String) async {
-        GoogleAuth.shared.signOut(account)
-        accounts = GoogleAuth.shared.accounts
+        Auth.shared.signOut(account)
+        accounts = Auth.shared.accounts
         events = [] // the Meeting Guardian mustn't alert for the removed account's events
         if signedIn { await refresh() } else { mode = .main }
     }

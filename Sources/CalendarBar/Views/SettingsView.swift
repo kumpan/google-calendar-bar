@@ -59,15 +59,21 @@ struct SettingsView: View {
 
                 Section {
                     ForEach(state.accounts, id: \.self) { account in
-                        LabeledContent(account) {
+                        LabeledContent {
                             Button("Remove", role: .destructive) { Task { await state.remove(account) } }
+                        } label: {
+                            Text(AccountKey.email(account))
+                            Text(AccountKey.provider(account).name)
                         }
                     }
-                    Button("Add Account…") { Task { await state.addAccount() } }
+                    ForEach(Provider.allCases.filter(\.isConfigured), id: \.self) { provider in
+                        Button("Add \(provider.name) Account…") { Task { await state.addAccount(provider) } }
+                    }
                 } header: {
-                    Text("Google accounts")
+                    Text("Accounts")
                 } footer: {
-                    Text("Shows the calendars ticked in each account's Google Calendar sidebar.").foregroundStyle(.secondary)
+                    Text("Google: the calendars ticked in Google Calendar's sidebar. Microsoft: all your Outlook calendars.")
+                        .foregroundStyle(.secondary)
                 }
 
                 Section {

@@ -1,23 +1,5 @@
 import Foundation
 
-struct Event: Identifiable, Equatable {
-    let id: String
-    let title: String
-    let start: Date
-    let end: Date
-    let isAllDay: Bool
-    /// Calendar name; nil for the primary calendar.
-    let calendar: String?
-    let colorHex: String?
-    let meetingURL: URL?
-    /// "Google Meet", "Zoom", …
-    let meetingName: String?
-    /// The event in Google Calendar on the web.
-    let link: URL?
-    /// Has a video link or other guests. The Meeting Guardian only alerts for these.
-    let isImportant: Bool
-}
-
 /// Read-only Google Calendar API v3 client.
 enum GoogleCalendar {
     struct CalendarList: Decodable { let items: [Entry] }
@@ -59,26 +41,18 @@ enum GoogleCalendar {
         let eventType: String?
     }
 
-    private struct Failure: Decodable {
-        struct Body: Decodable { let message: String }
-        let error: Body
-    }
-
     /// The event colours Google Calendar shows today (the API's /colors endpoint still returns old pastels).
     static let eventColors = ["1": "#7986CB", "2": "#33B679", "3": "#8E24AA", "4": "#E67C73", "5": "#F6BF26", "6": "#F4511E",
                               "7": "#039BE5", "8": "#616161", "9": "#3F51B5", "10": "#0B8043", "11": "#D50000"]
 
-    static let providers = ["meet.google.com": "Google Meet", "zoom.us": "Zoom", "teams.microsoft.com": "Microsoft Teams",
-                            "teams.live.com": "Microsoft Teams", "webex.com": "Webex", "whereby.com": "Whereby",
-                            "chime.aws": "Amazon Chime", "gotomeeting.com": "GoTo Meeting"]
-
     /// Events from the calendars ticked in each account's Google Calendar sidebar, sorted by start.
-    static func events(accounts: [String], from start: Date, to end: Date) async throws -> [Event] {
+    /// `namePrimary`: there are several accounts to tell apart.
+    static func events(accounts: [String], from start: Date, to end: Date, namePrimary: Bool) async throws -> [Event] {
         // Accounts in the order they were added, each with its primary calendar first: the first copy
         // of an event that is on several calendars (a colleague's, or both your accounts) wins.
         var calendars: [(account: String, entry: Entry)] = []
         for account in accounts {
-            calendars += try await get(CalendarList.self, "users/me/calendarList", [], account: account).items
+            calendars += try await get(CalendarList.self, "users/me/calendarList", account: account).items
                 .filter { $0.selected == true }
                 .sorted { $0.primary == true && $1.primary != true }
                 .map { (account, $0) }
@@ -100,7 +74,7 @@ enum GoogleCalendar {
         let events = calendars.indices.flatMap { i in
             (lists[i] ?? [])
                 .filter { seen.insert("\($0.iCalUID ?? $0.id)|\($0.start?.dateTime ?? $0.start?.date ?? "")").inserted }
-                .compactMap { makeEvent($0, calendar: calendars[i].entry, account: calendars[i].account, namePrimary: accounts.count > 1) }
+                .compactMap { makeEvent($0, calendar: calendars[i].entry, account: calendars[i].account, namePrimary: namePrimary) }
         }
         return events.sorted { $0.start < $1.start }
     }
@@ -135,15 +109,10 @@ enum GoogleCalendar {
     static func meetingLink(_ e: APIEvent) -> (url: URL, name: String)? {
         if let uri = e.conferenceData?.entryPoints?.first(where: { $0.entryPointType == "video" })?.uri,
            let url = URL(string: uri) {
-            return (url, e.conferenceData?.conferenceSolution?.name ?? provider(url) ?? "Video call")
+            return (url, e.conferenceData?.conferenceSolution?.name ?? VideoLink.provider(url) ?? "Video call")
         }
         if let url = e.hangoutLink.flatMap({ URL(string: $0) }) { return (url, "Google Meet") }
-        let text = [e.location, e.description].compactMap { $0 }.joined(separator: "\n")
-        let detector = try! NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
-        for match in detector.matches(in: text, range: NSRange(text.startIndex..., in: text)) {
-            if let url = match.url, let name = provider(url) { return (url, name) }
-        }
-        return nil
+        return VideoLink.find(in: [e.location, e.description].compactMap { $0 }.joined(separator: "\n"))
     }
 
     /// Google web links otherwise open in whichever account the browser signed in to first.
@@ -153,28 +122,9 @@ enum GoogleCalendar {
         return c.url ?? url
     }
 
-    static func provider(_ url: URL) -> String? {
-        guard let host = url.host()?.lowercased() else { return nil }
-        return providers.first { host == $0.key || host.hasSuffix("." + $0.key) }?.value
-    }
-
-    private static func get<T: Decodable>(_ type: T.Type, _ path: String, _ query: [URLQueryItem], account: String) async throws -> T {
-        let token = try await GoogleAuth.shared.accessToken(for: account)
+    private static func get<T: Decodable>(_ type: T.Type, _ path: String, _ query: [URLQueryItem] = [], account: String) async throws -> T {
         var c = URLComponents(string: "https://www.googleapis.com/calendar/v3/" + path)!
         if !query.isEmpty { c.queryItems = query }
-        var request = URLRequest(url: c.url!)
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        let (data, response) = try await googleSession.data(for: request)
-        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-        guard status == 200 else {
-            if status == 401 { await GoogleAuth.shared.dropAccessToken(for: account) }
-            let message = (try? JSONDecoder().decode(Failure.self, from: data))?.error.message ?? "Google Calendar error \(status)."
-            if message.contains("insufficient authentication scopes") { // signed in without ticking calendar access
-                await GoogleAuth.shared.signOut(account)
-                throw GoogleAuth.AuthError.noCalendarAccess(account)
-            }
-            throw AppError(message)
-        }
-        return try JSONDecoder().decode(T.self, from: data)
+        return try await apiGet(type, c.url!, account: account)
     }
 }

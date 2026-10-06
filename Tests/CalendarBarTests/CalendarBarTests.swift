@@ -55,6 +55,62 @@ final class CalendarBarTests: XCTestCase {
         XCTAssertEqual(GoogleCalendar.makeEvent(items[0], calendar: primary, account: "me@kumpan.se", namePrimary: true)?.calendar, "me@kumpan.se")
     }
 
+    func testMapsMicrosoftEvents() throws {
+        let items = try JSONDecoder().decode(MicrosoftCalendar.EventList.self, from: Data(#"""
+        {"value": [
+          {"id": "a", "iCalUId": "040000", "subject": "Sprint review", "isAllDay": false, "isCancelled": false,
+           "start": {"dateTime": "2026-10-06T12:30:00.0000000", "timeZone": "UTC"},
+           "end": {"dateTime": "2026-10-06T13:00:00.0000000", "timeZone": "UTC"},
+           "webLink": "https://outlook.office365.com/owa/?itemid=a", "onlineMeetingProvider": "teamsForBusiness",
+           "onlineMeeting": {"joinUrl": "https://teams.microsoft.com/l/meetup-join/19%3ameeting"},
+           "attendees": [{"emailAddress": {"address": "b@kumpan.se"}}], "responseStatus": {"response": "accepted"}},
+          {"id": "b", "subject": "Kick-off", "isAllDay": true,
+           "start": {"dateTime": "2026-10-05T22:00:00.0000000"}, "end": {"dateTime": "2026-10-06T22:00:00.0000000"}},
+          {"id": "c", "subject": "Declined", "start": {"dateTime": "2026-10-06T08:00:00.0000000"},
+           "end": {"dateTime": "2026-10-06T09:00:00.0000000"}, "responseStatus": {"response": "declined"}},
+          {"id": "d", "subject": "Cancelled", "isCancelled": true, "start": {"dateTime": "2026-10-06T08:00:00.0000000"},
+           "end": {"dateTime": "2026-10-06T09:00:00.0000000"}},
+          {"id": "e", "subject": "", "location": {"displayName": "Online"},
+           "body": {"content": "Join: https://us02web.zoom.us/j/9"},
+           "start": {"dateTime": "2026-10-06T15:00:00.0000000"}, "end": {"dateTime": "2026-10-06T15:30:00.0000000"}}
+        ]}
+        """#.utf8)).value
+        let calendar = MicrosoftCalendar.Entry(id: "cal", name: "Calendar", hexColor: "", isDefaultCalendar: true)
+        let events = items.compactMap { MicrosoftCalendar.makeEvent($0, calendar: calendar, account: "microsoft:per@kumpan.se") }
+        XCTAssertEqual(events.map(\.title), ["Sprint review", "Kick-off", "(No title)"])
+
+        let review = events[0]
+        XCTAssertEqual(review.start, ISO8601DateFormatter().date(from: "2026-10-06T12:30:00Z"))
+        XCTAssertEqual(review.meetingName, "Microsoft Teams")
+        XCTAssertTrue(review.isImportant)
+        XCTAssertNil(review.calendar)   // the default calendar goes unnamed…
+        XCTAssertNil(review.colorHex)   // …and "" means no colour
+        XCTAssertEqual(MicrosoftCalendar.makeEvent(items[0], calendar: calendar, account: "microsoft:per@kumpan.se",
+                                                   namePrimary: true)?.calendar, "per@kumpan.se")
+
+        // All-day: midnight in the creator's zone (here 22:00 UTC the day before) is the local day it's nearest to.
+        let kickOff = events[1]
+        XCTAssertTrue(kickOff.isAllDay)
+        XCTAssertEqual(kickOff.start, Calendar.current.startOfDay(for: ISO8601DateFormatter().date(from: "2026-10-06T10:00:00Z")!))
+
+        XCTAssertEqual(events[2].meetingName, "Zoom")
+        XCTAssertTrue(events[2].isImportant) // a video link makes it a meeting
+    }
+
+    func testProvidersAndAccountKeys() {
+        XCTAssertTrue(Provider.microsoft.grantsCalendar("openid email Calendars.Read profile User.Read"))
+        XCTAssertFalse(Provider.microsoft.grantsCalendar("openid email profile"))
+        XCTAssertTrue(Provider.google.grantsCalendar("openid https://www.googleapis.com/auth/calendar.calendarlist.readonly https://www.googleapis.com/auth/calendar.events.readonly"))
+        XCTAssertFalse(Provider.google.grantsCalendar("openid https://www.googleapis.com/auth/calendar.calendarlist.readonly"))
+        XCTAssertEqual(Provider.microsoft.redirectURI, "msauth.se.kumpan.calendarbar://auth")
+
+        XCTAssertEqual(AccountKey.make(.google, "per@kumpan.se"), "per@kumpan.se") // as stored by earlier versions
+        let ms = AccountKey.make(.microsoft, "per@kumpan.se")
+        XCTAssertEqual(AccountKey.provider(ms), .microsoft)
+        XCTAssertEqual(AccountKey.email(ms), "per@kumpan.se")
+        XCTAssertEqual(AccountKey.provider("per@kumpan.se"), .google)
+    }
+
     func testFeaturedEvent() {
         func event(_ id: String, _ start: TimeInterval, _ end: TimeInterval, allDay: Bool = false) -> Event {
             Event(id: id, title: id, start: Date(timeIntervalSince1970: start), end: Date(timeIntervalSince1970: end),
@@ -75,8 +131,11 @@ final class CalendarBarTests: XCTestCase {
         // Header and signature don't matter; payload {"email":"per@gmail.com","sub":"1"} in base64url without padding.
         let payload = Data(#"{"email":"per@gmail.com","sub":"1"}"#.utf8).base64EncodedString()
             .replacingOccurrences(of: "=", with: "").replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_")
-        XCTAssertEqual(GoogleAuth.email(fromIDToken: "eyJhbGciOiJSUzI1NiJ9.\(payload).sig"), "per@gmail.com")
-        XCTAssertNil(GoogleAuth.email(fromIDToken: "garbage"))
+        XCTAssertEqual(Auth.email(fromIDToken: "eyJhbGciOiJSUzI1NiJ9.\(payload).sig"), "per@gmail.com")
+        XCTAssertNil(Auth.email(fromIDToken: "garbage"))
+        let msPayload = Data(#"{"preferred_username":"per@outlook.com","sub":"1"}"#.utf8).base64EncodedString()
+            .replacingOccurrences(of: "=", with: "").replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_")
+        XCTAssertEqual(Auth.email(fromIDToken: "h.\(msPayload).s"), "per@outlook.com")
     }
 
     func testDuration() {

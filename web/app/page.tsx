@@ -23,8 +23,8 @@ const highlights = [
 ];
 
 const features = [
-  { title: "Work and private", text: "Add several Google accounts. A meeting that’s on more than one calendar shows once." },
-  { title: "The calendars you already picked", text: "CalendarBar shows the calendars ticked in Google Calendar’s sidebar, in their own colours." },
+  { title: "Work and private", text: "Add several Google and Microsoft accounts. A meeting that’s on more than one of your Google calendars shows once." },
+  { title: "Your calendars, your colours", text: "CalendarBar shows the calendars ticked in Google Calendar’s sidebar and your Outlook calendars, each in its own colour." },
   { title: "Keeps itself up to date", text: "New versions install in two clicks, and only if they’re signed by Kumpan and notarized by Apple." },
 ];
 
@@ -35,11 +35,11 @@ export default function Home() {
         <section className="grid items-center gap-14 py-14 md:grid-cols-[1fr_auto] md:py-24">
           <div className="max-w-2xl">
             <h1 className="text-5xl leading-[1.05] tracking-tight text-balance sm:text-6xl">
-              Your Google Calendar in the Mac menu bar.
+              Your calendar in the Mac menu bar.
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-relaxed text-muted-foreground text-pretty">
-              See what&apos;s next, join the call in one click, and get a heads-up before meetings
-              you can&apos;t miss. Free, from Kumpan.
+              Google Calendar and Outlook, side by side. See what&apos;s next, join the call in one
+              click, and get a heads-up before meetings you can&apos;t miss. Free, from Kumpan.
             </p>
             <div className="mt-10 flex flex-wrap items-center gap-x-5 gap-y-3">
               <a
@@ -105,9 +105,9 @@ export default function Home() {
           </div>
           <div>
             <p className="leading-relaxed text-white/80">
-              When you sign in, CalendarBar asks Google for read-only access to your calendar list
-              and events, and for your email address to tell accounts apart. It has no server, and
-              your calendar data is never sent to Kumpan or anyone else.
+              When you sign in, CalendarBar asks Google or Microsoft for read-only access to your
+              calendars and events, and for your email address to tell accounts apart. It has no
+              server, and your calendar data is never sent to Kumpan or anyone else.
             </p>
             <Link
               href="/privacy"

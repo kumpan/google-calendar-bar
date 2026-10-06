@@ -13,15 +13,15 @@ export default function Privacy() {
       <p>Last updated 6 October 2026.</p>
       <p>
         CalendarBar is a macOS menu bar app made by Kumpan Sweden AB (&quot;Kumpan&quot;,
-        &quot;we&quot;). It shows events from your Google Calendar. This policy explains what Google
-        user data the app accesses, how it uses, shares, protects and deletes that data.
+        &quot;we&quot;). It shows events from your Google Calendar and Microsoft Outlook calendars. This
+        policy explains what data the app accesses, and how it uses, shares, protects and deletes it.
       </p>
 
       <h2>The short version</h2>
       <p>
         CalendarBar runs entirely on your Mac. It has no server, no analytics and no AI features.
-        Your calendar data goes from Google to your Mac and nowhere else, and Kumpan never receives
-        it.
+        Your calendar data goes from Google or Microsoft to your Mac and nowhere else, and Kumpan
+        never receives it.
       </p>
 
       <h2>Data the app accesses</h2>
@@ -43,41 +43,55 @@ export default function Privacy() {
           scopes), to tell your signed-in accounts apart.
         </li>
       </ul>
+      <p>When you sign in with a Microsoft account, you grant CalendarBar:</p>
+      <ul>
+        <li>
+          <strong>Read-only access to your calendars</strong> (the Microsoft Graph{" "}
+          <code>Calendars.Read</code> permission): your calendars with their names and colours, and
+          events for today and tomorrow, with the same details as above, including Teams meeting
+          links.
+        </li>
+        <li>
+          <strong>Your email address</strong> (<code>openid</code> and <code>email</code>) to tell
+          accounts apart, and <code>offline_access</code> so you stay signed in.
+        </li>
+      </ul>
       <p>
         CalendarBar can&apos;t create, change or delete anything in your calendars. It doesn&apos;t
-        create aggregated or anonymized data from Google user data.
+        create aggregated or anonymized data from your calendar data.
       </p>
 
       <h2>How the data is used</h2>
       <ul>
         <li>To show your next event and your events for today and tomorrow in the menu bar.</li>
         <li>To show each event in its calendar&apos;s colour and with its calendar&apos;s name.</li>
-        <li>To open the video call or the event in Google Calendar when you click it.</li>
+        <li>To open the video call, or the event in Google Calendar or Outlook, when you click it.</li>
         <li>
           To show the Meeting Guardian alert before meetings that have a video link or other guests.
         </li>
       </ul>
       <p>
-        Google user data is used only to provide these features. It is not used for advertising,
+        Calendar data from Google and Microsoft is used only to provide these features. It is not used for advertising,
         profiling, credit or lending decisions, or any other purpose, and it is not used to develop,
         improve or train AI or machine learning models.
       </p>
 
       <h2>Sharing and transfer</h2>
       <p>
-        We don&apos;t receive, sell, transfer or share Google user data with anyone, including
+        We don&apos;t receive, sell, transfer or share your calendar data with anyone, including
         advertisers, data brokers and AI or machine learning services. The app talks directly to
-        Google to load your calendars, and to GitHub to check for new versions of the app. Update
+        Google and Microsoft to load your calendars, and to GitHub to check for new versions of the
+        app. Update
         checks don&apos;t include any personal data.
       </p>
 
       <h2>How the data is protected</h2>
       <ul>
         <li>
-          Sign-in uses Google&apos;s OAuth 2.0 with PKCE in Google&apos;s own sign-in page.
-          CalendarBar never sees your Google password.
+          Sign-in uses OAuth 2.0 with PKCE on Google&apos;s or Microsoft&apos;s own sign-in page.
+          CalendarBar never sees your password.
         </li>
-        <li>All requests to Google are encrypted in transit with HTTPS (TLS).</li>
+        <li>All requests to Google and Microsoft are encrypted in transit with HTTPS (TLS).</li>
         <li>
           Calendar data and short-lived access tokens are kept only in the app&apos;s memory and
           are never written to disk, not even to a cache.
@@ -105,19 +119,29 @@ export default function Privacy() {
         <li>
           A signed-in account&apos;s refresh token and email address stay in your Keychain until you
           remove the account. In CalendarBar, open Settings and click <strong>Remove</strong> next
-          to the account: this deletes them and revokes CalendarBar&apos;s access at Google. If you
-          revoke access at{" "}
+          to the account: this deletes them and, for Google accounts, revokes CalendarBar&apos;s
+          access at Google. You can also revoke access at{" "}
           <a href="https://myaccount.google.com/permissions" className={link}>
             myaccount.google.com/permissions
           </a>{" "}
-          instead, the app deletes the token the next time it tries to use it.
+          (Google),{" "}
+          <a href="https://account.live.com/consent/Manage" className={link}>
+            account.live.com/consent/Manage
+          </a>{" "}
+          (personal Microsoft accounts) or{" "}
+          <a href="https://myapps.microsoft.com" className={link}>
+            myapps.microsoft.com
+          </a>{" "}
+          (work or school accounts); the app then deletes the token the next time it tries to use
+          it.
         </li>
         <li>
           Your settings, such as the alert time, are stored in the app&apos;s preferences on your
           Mac and are deleted with the app.
         </li>
         <li>
-          Kumpan holds no Google user data, so there is nothing for us to delete on your behalf.
+          Kumpan holds none of your calendar data, so there is nothing for us to delete on your
+          behalf.
         </li>
       </ul>
 

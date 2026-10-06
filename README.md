@@ -3,7 +3,7 @@
 Your Google Calendar in the Mac menu bar. See what's next, join the call in one click, and get a
 heads-up before meetings you can't miss.
 
-**Website:** [calendarbar.kumpan.se](https://calendarbar.kumpan.se) · **Requires** macOS 26 or later, and a Google account (work or private, or both).
+**Website:** [calendarbar.kumpan.se](https://calendarbar.kumpan.se) · **Requires** macOS 26 or later, and a Google or Microsoft account (or several).
 
 ---
 
@@ -84,6 +84,12 @@ swift scripts/make-icon.swift preview out.png   # icon preview; `swift scripts/m
   `ASWebAuthenticationSession` with the reversed client ID as callback scheme. Scopes: `openid email
   calendar.calendarlist.readonly calendar.events.readonly` (the narrowest read-only scopes for
   the calendar list and events); the email in the ID token keys each account's refresh token in the keychain.
+- **Microsoft:** app registration `CalendarBar` (client ID `ffee141c-ab36-4d76-bc7a-f42ee8d43645`) in the
+  Entra directory `perkumpan.onmicrosoft.com`, for any work, school or personal Microsoft account. Public
+  client with redirect `msauth.se.kumpan.calendarbar://auth`; delegated Graph permissions `Calendars.Read`,
+  `offline_access`, `openid`, `email` (none need admin consent, though strict organizations may still require
+  it until the publisher is verified). Graph has no "shown in sidebar" flag, so all of an account's own
+  calendars are read. Microsoft accounts are stored under the key `microsoft:<email>`.
 - **Consent screen:** audience **External** so private Gmail accounts work, publishing status **In
   production** (in *Testing*, refresh tokens expire after 7 days). The calendar scopes are sensitive,
   so until Google verifies the app, sign-in shows an "unverified app" warning and is capped at 100 users.

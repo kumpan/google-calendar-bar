@@ -9,10 +9,14 @@ func featuredEvent(_ events: [Event], now: Date) -> Event? {
     return timed.first { $0.start <= now } ?? next
 }
 
-private func googleCalendar(_ account: String?) -> URL {
-    let url = URL(string: "https://calendar.google.com/calendar/r")!
-    return account.map { GoogleCalendar.inAccount(url, $0) } ?? url
+/// The account's calendar on the web: Google Calendar in that Google account, or Outlook.
+private func webCalendar(_ account: String?) -> URL {
+    guard let account else { return URL(string: "https://calendar.google.com/calendar/r")! }
+    if AccountKey.provider(account) == .microsoft { return URL(string: "https://outlook.office.com/calendar/")! }
+    return GoogleCalendar.inAccount(URL(string: "https://calendar.google.com/calendar/r")!, account)
 }
+
+private func webCalendarName(_ provider: Provider) -> String { provider == .google ? "Google Calendar" : "Outlook" }
 
 private func open(_ url: URL?) {
     if let url { NSWorkspace.shared.open(url) }
@@ -93,20 +97,24 @@ struct MainView: View {
 
     private var footer: some View {
         HStack(spacing: 4) {
+            let providers = Set(state.accounts.map(AccountKey.provider))
+            let title = providers.count == 1 ? webCalendarName(providers.first!) : "Calendar"
             if state.accounts.count > 1 {
                 Menu {
                     ForEach(state.accounts, id: \.self) { account in
-                        Button(account) { open(googleCalendar(account)) }
+                        Button("\(webCalendarName(AccountKey.provider(account))) · \(AccountKey.email(account))") {
+                            open(webCalendar(account))
+                        }
                     }
                 } label: {
-                    Label("Google Calendar", systemImage: "arrow.up.forward.app")
+                    Label(title, systemImage: "arrow.up.forward.app")
                 }
                 .menuStyle(.button)
                 .buttonStyle(.glass)
                 .fixedSize()
             } else {
-                Button { open(googleCalendar(state.accounts.first)) } label: {
-                    Label("Google Calendar", systemImage: "arrow.up.forward.app")
+                Button { open(webCalendar(state.accounts.first)) } label: {
+                    Label(title, systemImage: "arrow.up.forward.app")
                 }
                 .buttonStyle(.glass)
             }
@@ -161,7 +169,7 @@ struct NextCard: View {
         .glassEffect(.regular.tint(event.color.opacity(0.22)), in: .rect(cornerRadius: panelCornerRadius - 10))
         .contentShape(.rect)
         .onTapGesture { open(event.link) }
-        .help("Open in Google Calendar")
+        .help("Open in your calendar")
     }
 }
 
@@ -185,7 +193,7 @@ struct EventRow: View {
         .rowStyle(hovering: $hovering)
         .opacity(event.end <= now ? 0.45 : 1)
         .onTapGesture { open(event.link) }
-        .help("Open in Google Calendar")
+        .help("Open in your calendar")
     }
 }
 
@@ -198,20 +206,21 @@ struct SignInView: View {
                 .font(.system(size: 40, weight: .light))
                 .foregroundStyle(.tint)
             VStack(spacing: 4) {
-                Text("Connect Google Calendar").font(.system(size: 15, weight: .semibold))
+                Text("Connect your calendar").font(.system(size: 15, weight: .semibold))
                 Text("See what's next and join meetings in one click.")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
             }
-            if GoogleAuth.isConfigured {
-                Button { Task { await state.addAccount() } } label: {
-                    Text("Sign in with Google").frame(maxWidth: .infinity)
+            ForEach(Provider.allCases.filter(\.isConfigured), id: \.self) { provider in
+                Button { Task { await state.addAccount(provider) } } label: {
+                    Text("Sign in with \(provider.name)").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.glassProminent)
                 .controlSize(.large)
-            } else {
-                Text("This build has no Google client ID. See README → For developers.")
+            }
+            if !Provider.allCases.contains(where: \.isConfigured) {
+                Text("This build has no OAuth client IDs. See README → For developers.")
                     .font(.system(size: 12))
                     .foregroundStyle(.orange)
                     .multilineTextAlignment(.center)

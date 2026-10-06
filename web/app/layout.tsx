@@ -13,7 +13,7 @@ const zalando = Zalando_Sans_SemiExpanded({
 export const metadata: Metadata = {
   title: "CalendarBar – your calendar in the Mac menu bar",
   description:
-    "See what's next, join video calls in one click and get a heads-up before meetings. A free menu bar app for Google Calendar by Kumpan.",
+    "See what's next, join video calls in one click and get a heads-up before meetings. A free menu bar app for Google Calendar and Outlook by Kumpan.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
